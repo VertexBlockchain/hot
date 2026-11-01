@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import path from "path";
 import { registerOAuthRoutes } from "./oauth";
 import { publicPlatformScript } from "./publicConfig";
 import { appRouter } from "../routers";
@@ -18,6 +19,18 @@ async function startServer() {
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });
+  // Vite's custom middleware mode falls through to the SPA for unknown paths;
+  // keep the supplied offer gallery explicitly available in Preview as well.
+  const offerAssetsPath = process.env.NODE_ENV === "development"
+    ? path.resolve(process.cwd(), "client/public/oferta")
+    : path.resolve(import.meta.dirname, "public/oferta");
+  app.get("/oferta/:filename", (req, res, next) => {
+    const filename = path.basename(req.params.filename);
+    res.sendFile(path.join(offerAssetsPath, filename), error => {
+      if (error) next(error);
+    });
+  });
+  app.use("/oferta", express.static(offerAssetsPath));
   registerOAuthRoutes(app);
   // tRPC API
   app.use(
